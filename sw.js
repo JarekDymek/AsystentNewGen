@@ -1,4 +1,4 @@
-const CACHE = 'asystent-mow-newgen-v5';
+const CACHE = 'asystent-mow-newgen-v6';
 const APP_SHELL = [
   './',
   './index.html',

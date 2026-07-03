@@ -26,6 +26,12 @@ assertDecision('Czy wychowawca MOW ma 40 godzin pensum?', ['answer'], /24/, /Kar
 assertDecision('Czy mogę wpisać PESEL 12345678901 do AI?', ['blocked'], /anonimiz|PESEL|danych/i, /ochrony danych|Standardy/i);
 assertDecision('urlop', ['clarify'], /Doprecyzuj|ogolne|ogólne/i);
 assertDecision('Czy chłopaki mogą mieć dodatkowy telefon?', ['clarify', 'answer'], /zrod|źród|doprecyz/i);
+assertDecision(
+  'Jak zmotywować wychowanka do przyłożenia się przy wykonywaniu dyżuru sprzątania własnego pokoju?',
+  ['answer'],
+  /10 minut|stopnia|dyzur|dyżur|pokoj|pokój/i,
+  /Poradnik wychowawcy|Regulamin stopni|Rozklad dnia|Rozkład dnia/i
+);
 
 console.log('OK: silnik decyzji pilnuje źródeł, pytań ogólnych, danych osobowych i pensum 24 godziny.');
 

@@ -50,6 +50,9 @@
       return procedureDecision(nonUrgentProcedureHit.proc, normalized);
     }
 
+    const practical = findPracticalGuidance(normalized);
+    if (practical) return practical;
+
     const sourceHints = findSourceHints(normalized);
     if (sourceHints.length) {
       return {
@@ -111,6 +114,42 @@
       sources: entry.sources || [],
       confidence: match.confidence
     };
+  }
+
+  function findPracticalGuidance(normalizedQuery) {
+    if (isRoomDutyMotivation(normalizedQuery)) {
+      return {
+        kind: 'answer',
+        severity: 'normal',
+        title: 'Motywowanie do dyzuru i porzadku w pokoju',
+        answer: [
+          'Najlepiej potraktowac to jako krotka interwencje wychowawcza, nie jako spor o miotle czy pokoj.',
+          '',
+          '1. Nazwij konkretny standard: "Twoim zadaniem jest doprowadzic pokoj do stanu: lozko zaslane, rzeczy na miejscu, podloga bez smieci, blat pusty".',
+          '2. Daj wybor w ramach obowiazku, nie wybor czy zrobi: "Zaczynasz od lozka czy od podlogi? Sprawdzam za 10 minut".',
+          '3. Zmniejsz opor przez start: wejdz na pierwsza minute, wskaz pierwszy maly krok, potem zostaw odpowiedzialnosc wychowankowi.',
+          '4. Polacz dyzur ze stopniem uspołecznienia: realizowanie dyzurow, higiena, porzadek i samodzielnosc sa kryteriami oceny. Powiedz spokojnie, co to znaczy dla jego oceny dnia/tygodnia.',
+          '5. Wzmacniaj konkretnie: pochwal nie "jestes grzeczny", tylko "sam poprawiles lozko i doprowadziles pokoj do porzadku".',
+          '6. Jezeli dalej odmawia, nie przeciagaj przepychanki. Zapisz odmowe lub nierzetelne wykonanie, wroc do rozmowy po emocjach i ustal sposob naprawienia dyzuru.',
+          '',
+          'Gotowa formulka: "Nie dyskutujemy, czy pokoj ma byc posprzatany. To jest twoj obowiazek i element stopnia. Masz 10 minut, wybierz od czego zaczynasz. Po sprawdzeniu wpisze, czy wykonales dyzur samodzielnie i rzetelnie".'
+        ].join('\n'),
+        certainty: SOURCE_CONFIRMED,
+        sources: [
+          'Poradnik wychowawcy MOW: porzadkowanie i rejony, zeszyt dyzurow, rotacja i sprawiedliwosc',
+          'Regulamin stopni uspołecznienia MOW: realizuje dyzury, dba o higiene i mienie, samodzielnie realizuje dyzury',
+          'Rozklad dnia MOW: porzadki poranne, zajecia wychowawcze i dyzury wieczorne'
+        ]
+      };
+    }
+    return null;
+  }
+
+  function isRoomDutyMotivation(normalizedQuery) {
+    const motivation = ['motyw', 'zachec', 'przyloz', 'mobiliz', 'nie chce', 'odmawia', 'olew', 'lekcewaz'];
+    const duty = ['dyzur', 'sprzatan', 'porzadek', 'pokoj', 'sypialn', 'higien', 'rejon'];
+    return motivation.some(item => normalizedQuery.includes(item))
+      && duty.some(item => normalizedQuery.includes(item));
   }
 
   function clarifyDecision(match) {
