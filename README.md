@@ -10,11 +10,26 @@ Asystent MOW NewGen ma pomagać wychowawcy w szybkim znalezieniu właściwej dro
 
 Założenia:
 - mobilny interfejs jako główny widok pracy,
+- centrum decyzji na pierwszym ekranie: źródło albo dopytanie,
 - lokalny bank 250 odpowiedzi przed użyciem zewnętrznego AI,
 - czytelne karty zamiast długich list,
 - PWA z instalacją na telefonie, tablecie i komputerze,
 - backend Render-ready bez ujawniania kluczy API w przeglądarce.
 - pierwszeństwo dokumentów MOW przy pytaniach proceduralnych.
+
+## Instalacja PWA
+
+Docelowy link instalacyjny po włączeniu GitHub Pages:
+
+```text
+https://jarekdymek.github.io/AsystentNewGen/?tester=1
+```
+
+Na Androidzie po otwarciu linku w Chrome powinien pojawić się przycisk `Instaluj`. Na iOS aplikację dodaje się przez `Udostępnij` -> `Do ekranu początkowego`.
+
+## Zasada pewności źródłowej
+
+Aplikacja nie ma udawać pewności. Jeżeli pytanie jest ogólne albo nie pasuje do zatwierdzonego źródła, ma dopytać. Odpowiedź może być traktowana jako potwierdzona tylko w zakresie wskazanych dokumentów, procedur, banku odpowiedzi lub aktywnych zmian czasowych.
 
 ## Uruchomienie lokalne
 
