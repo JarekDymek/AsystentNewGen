@@ -37,6 +37,7 @@
     }
   };
 
+  const DEVICE_DATA_KEYS = ['tab', 'currentInfo', 'weeks', 'workerName', 'viewToken', 'scheduleImage', 'chat'];
   const answerIndex = buildAnswerIndex(Array.isArray(window.MOW_ANSWER_BANK) ? window.MOW_ANSWER_BANK : []);
   let currentTab = store.get('tab', 'home');
   let deferredPrompt = null;
@@ -50,7 +51,7 @@
     setInterval(tickClock, 15000);
     bindPwa();
     bindDialog();
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+    registerServiceWorker();
   }
 
   function renderNav() {
@@ -287,11 +288,24 @@
         <textarea class="search" id="infoBody" rows="4" placeholder="Treść, ustalenia, termin, miejsce..."></textarea>
         <button class="primary-btn" type="button" id="addInfo">Dodaj informację</button>
       </section>
+      <section class="panel">
+        <h2 class="panel-title">Kopia danych urządzenia</h2>
+        <p class="muted">Zapisuje lokalne informacje, plan, screen harmonogramu i historię AI z tego urządzenia. Nie wysyła danych na serwer.</p>
+        <div class="two-col">
+          <button class="ghost-btn" type="button" id="exportData">Pobierz kopię</button>
+          <label class="ghost-btn">
+            Wczytaj kopię
+            <input id="importData" type="file" accept="application/json" hidden>
+          </label>
+        </div>
+      </section>
       <div id="infoList"></div>
     `;
     document.getElementById('infoDate').value = todayIso();
     document.getElementById('addInfo').addEventListener('click', addInfoEntry);
     document.getElementById('syncInfo').addEventListener('click', syncInfo);
+    document.getElementById('exportData').addEventListener('click', exportDeviceData);
+    document.getElementById('importData').addEventListener('change', importDeviceData);
     drawInfo(entries);
   }
 
@@ -555,6 +569,16 @@
   }
 
   function resolveLocalAnswer(question) {
+    if (typeof window.resolveAnswerBankIntent === 'function') {
+      const match = window.resolveAnswerBankIntent(question);
+      if (match?.type === 'answer' && typeof window.formatAnswerBankReply === 'function') {
+        return window.formatAnswerBankReply(match);
+      }
+      if (match?.type === 'clarify' && typeof window.formatAnswerBankClarification === 'function') {
+        return window.formatAnswerBankClarification(match);
+      }
+    }
+
     const query = normalize(question);
     const tokens = tokenize(question);
     if (!tokens.length) return null;
@@ -659,6 +683,68 @@
       deferredPrompt = null;
       btn.hidden = true;
     });
+  }
+
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('./sw.js')
+      .then(registration => {
+        registration.addEventListener('updatefound', () => {
+          const worker = registration.installing;
+          if (!worker) return;
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(worker);
+          });
+        });
+      })
+      .catch(() => {});
+    navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+  }
+
+  function showUpdateBanner(worker) {
+    if (document.getElementById('updateBanner')) return;
+    const banner = document.createElement('div');
+    banner.className = 'update-banner';
+    banner.id = 'updateBanner';
+    banner.innerHTML = `
+      <span>Dostępna nowa wersja aplikacji.</span>
+      <button class="primary-btn" type="button">Odśwież</button>
+    `;
+    banner.querySelector('button').addEventListener('click', () => worker.postMessage({ type: 'SKIP_WAITING' }));
+    document.body.appendChild(banner);
+  }
+
+  function exportDeviceData() {
+    const payload = {
+      app: 'Asystent MOW NewGen',
+      version: '2.1',
+      exportedAt: new Date().toISOString(),
+      data: Object.fromEntries(DEVICE_DATA_KEYS.map(key => [key, store.get(key, null)]))
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `asystent-mow-newgen-kopia-${todayIso()}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+  async function importDeviceData(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const payload = JSON.parse(await file.text());
+      if (payload.app !== 'Asystent MOW NewGen' || !payload.data) throw new Error('To nie wygląda jak kopia danych Asystenta MOW NewGen.');
+      if (!confirm('Wczytać kopię danych na tym urządzeniu? Obecne lokalne dane aplikacji zostaną zastąpione.')) return;
+      DEVICE_DATA_KEYS.forEach(key => {
+        if (Object.prototype.hasOwnProperty.call(payload.data, key)) store.set(key, payload.data[key]);
+      });
+      openDialog('<h2>Kopia wczytana</h2><p>Dane lokalne zostały przywrócone na tym urządzeniu.</p>');
+      render();
+    } catch (err) {
+      openDialog(`<h2>Nie udało się wczytać kopii</h2><p>${escapeHtml(err.message)}</p>`);
+    }
   }
 
   function tickClock() {

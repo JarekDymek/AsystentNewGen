@@ -8,10 +8,10 @@
     "start": "node backend/server.js",
     "test:syntax": "node tests/check-syntax.mjs",
     "test:app": "node tests/check-app.mjs",
-    "check": "node tests/check-syntax.mjs && node tests/check-app.mjs"
+    "test:router": "node tests/check-answer-router.mjs",
+    "check": "node tests/check-syntax.mjs && node tests/check-app.mjs && node tests/check-answer-router.mjs"
   },
   "engines": {
     "node": ">=20"
   }
 }
-

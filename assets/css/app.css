@@ -104,6 +104,14 @@ button {
   box-shadow: none;
 }
 
+label.ghost-btn,
+label.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
 .main {
   width: min(1080px, 100%);
   margin: 0 auto;
@@ -467,6 +475,24 @@ button {
   background: #f8fbfe;
   border: 1px dashed var(--line);
   color: var(--muted);
+}
+
+.update-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(94px + env(safe-area-inset-bottom));
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #f2c747;
+  border-radius: 14px;
+  background: #fff8d8;
+  color: var(--ink);
+  box-shadow: var(--shadow);
 }
 
 @media (max-width: 720px) {

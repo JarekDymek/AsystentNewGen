@@ -40,6 +40,7 @@ const dataFiles = ['data-procedures.js', 'data-social-levels.js', 'data-quick-ac
 for (const file of dataFiles) {
   if (!exists(`assets/js/${file}`)) throw new Error(`Brak pliku danych: ${file}`);
 }
+if (!exists('assets/js/answer-router.js')) throw new Error('Brak routera lokalnego banku odpowiedzi.');
 
 const appSurface = [
   read('index.html'),
