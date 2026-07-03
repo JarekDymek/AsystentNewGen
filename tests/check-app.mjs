@@ -41,6 +41,16 @@ for (const file of dataFiles) {
   if (!exists(`assets/js/${file}`)) throw new Error(`Brak pliku danych: ${file}`);
 }
 
+const appSurface = [
+  read('index.html'),
+  read('manifest.webmanifest'),
+  read('assets/js/app.js'),
+  read('assets/css/app.css')
+].join('\n').toLowerCase();
+for (const forbidden of ['strongman', 'zawodnik', 'konkurencja sportowa', 'punktowania rywalizacji']) {
+  if (appSurface.includes(forbidden)) throw new Error(`W interfejsie pozostało obce założenie: ${forbidden}`);
+}
+
 const knowledgeFiles = fs.readdirSync(path.join(root, 'backend/knowledge')).filter(file => file.endsWith('.md'));
 if (knowledgeFiles.length < 7) throw new Error('Backendowa baza wiedzy jest niepełna.');
 if (!read('backend/knowledge/04_wyciag_mow_praca_wychowawcy_awans_czas_pracy.md').includes('24 godziny')) {
