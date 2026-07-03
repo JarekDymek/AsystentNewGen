@@ -1,0 +1,15 @@
+const LAWS = [
+  {n:"1",t:"Ustawa o wspieraniu i resocjalizacji nieletnich (Dz.U. 2026 poz. 163) - podstawowy akt dla spraw nieletnich, środków wychowawczych, pobytu w MOW, praw wychowanka i czasowego opuszczania ośrodka."},
+  {n:"2",t:"Rozporządzenie MEiN z 30 marca 2023 r. w sprawie niektórych publicznych placówek systemu oświaty (Dz.U. 2023 poz. 651) - organizacja MOW, warunki pobytu, urlopy, przepustki i dokumentacja wychowanka."},
+  {n:"3",t:"Rozporządzenie Ministra Sprawiedliwości z 27 grudnia 2022 r. w sprawie kierowania, przenoszenia, zwalniania i pobytu nieletnich w MOW (Dz.U. 2023 poz. 139)."},
+  {n:"4",t:"Ustawa - Prawo oświatowe (Dz.U. 2026 poz. 820) - ramy działania placówek systemu oświaty, statut, nadzór, bezpieczeństwo i organizacja."},
+  {n:"5",t:"Karta Nauczyciela (Dz.U. 2026 poz. 515) - obowiązki, czas pracy, odpowiedzialność i awans zawodowy nauczyciela-wychowawcy."},
+  {n:"6",t:"Rozporządzenie MEiN z 6 września 2022 r. w sprawie uzyskiwania stopni awansu zawodowego przez nauczycieli (Dz.U. 2022 poz. 1914)."},
+  {n:"7",t:"Kodeks pracy (Dz.U. 2025 poz. 277 z późn. zm.) - stosowany pomocniczo w sprawach nieuregulowanych Kartą Nauczyciela i regulaminem pracy."},
+  {n:"8",t:"Ustawa o środkach przymusu bezpośredniego i broni palnej (Dz.U. 2026 poz. 244) - granice interwencji, bezpieczeństwo i dokumentowanie użycia środka przymusu."},
+  {n:"9",t:"Rozporządzenie w sprawie BHP w szkołach i placówkach (t.j. Dz.U. 2020 poz. 1604 z późn. zm.) - bezpieczeństwo wychowanków, pracowników i organizacja działań w placówce."},
+  {n:"10",t:"Rozporządzenie w sprawie pomocy psychologiczno-pedagogicznej (Dz.U. 2023 poz. 1798) - rozpoznawanie potrzeb, planowanie wsparcia i współpraca specjalistów."},
+  {n:"11",t:"Rozporządzenie o kształceniu, wychowaniu i opiece młodzieży niedostosowanej społecznie (Dz.U. 2020 poz. 1309) - organizacja wsparcia edukacyjnego i wychowawczego."},
+  {n:"12",t:"Rozporządzenie o dokumentacji przebiegu nauczania, działalności wychowawczej i opiekuńczej (Dz.U. 2024 poz. 50) - zasady prowadzenia dokumentacji."},
+  {n:"13",t:"Statut MOW nr 1 w Malborku, procedury wewnętrzne, regulamin stopni, standardy ochrony małoletnich i zarządzenia dyrektora - pierwszeństwo przy pytaniach o codzienne procedury."},
+];

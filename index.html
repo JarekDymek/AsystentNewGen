@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b3458">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="MOW NewGen">
+  <title>Asystent MOW NewGen</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="assets/css/app.css">
+  <script src="assets/js/data-schedule.js" defer></script>
+  <script src="assets/js/data-procedures.js" defer></script>
+  <script src="assets/js/data-social-levels.js" defer></script>
+  <script src="assets/js/data-quick-actions.js" defer></script>
+  <script src="assets/js/data-chat-pills.js" defer></script>
+  <script src="assets/js/data-laws.js" defer></script>
+  <script src="assets/js/data-answer-bank.js" defer></script>
+  <script src="assets/js/app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="assets/icons/icon-192.png" alt="">
+        <div>
+          <strong>Asystent MOW</strong>
+          <span>NewGen</span>
+        </div>
+      </div>
+      <button class="install-btn" id="installBtn" type="button" hidden>Instaluj</button>
+    </header>
+
+    <main id="app" class="main" tabindex="-1"></main>
+
+    <nav id="nav" class="bottom-nav" aria-label="Główna nawigacja"></nav>
+  </div>
+
+  <dialog id="detailDialog" class="dialog">
+    <button class="dialog-close" type="button" data-close-dialog>Zamknij</button>
+    <div id="dialogBody"></div>
+  </dialog>
+</body>
+</html>
+

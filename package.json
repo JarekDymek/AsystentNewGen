@@ -1,0 +1,17 @@
+{
+  "name": "asystent-mow-newgen",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node backend/server.js",
+    "start": "node backend/server.js",
+    "test:syntax": "node tests/check-syntax.mjs",
+    "test:app": "node tests/check-app.mjs",
+    "check": "node tests/check-syntax.mjs && node tests/check-app.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+
