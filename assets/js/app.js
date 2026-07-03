@@ -3,6 +3,8 @@
   const nav = document.getElementById('nav');
   const dialog = document.getElementById('detailDialog');
   const dialogBody = document.getElementById('dialogBody');
+  const urlParams = new URLSearchParams(window.location.search);
+  const isTesterMode = urlParams.get('tester') === '1' || urlParams.get('tryb') === 'tester' || window.location.hash.includes('tester');
 
   const tabs = [
     { id: 'home', icon: '🏠', label: 'Dyżur' },
@@ -37,7 +39,7 @@
     }
   };
 
-  const DEVICE_DATA_KEYS = ['tab', 'currentInfo', 'weeks', 'workerName', 'viewToken', 'scheduleImage', 'chat'];
+  const DEVICE_DATA_KEYS = ['tab', 'currentInfo', 'temporaryRules', 'weeks', 'workerName', 'viewToken', 'scheduleImage', 'chat', 'privacyMode', 'sunMode'];
   const answerIndex = buildAnswerIndex(Array.isArray(window.MOW_ANSWER_BANK) ? window.MOW_ANSWER_BANK : []);
   let currentTab = store.get('tab', 'home');
   let deferredPrompt = null;
@@ -45,11 +47,14 @@
   document.addEventListener('DOMContentLoaded', init);
 
   function init() {
+    document.body.classList.toggle('sun-mode', !!store.get('sunMode', false));
+    document.getElementById('testerBadge').hidden = !isTesterMode;
     renderNav();
     render();
     tickClock();
     setInterval(tickClock, 15000);
     bindPwa();
+    bindContrast();
     bindDialog();
     registerServiceWorker();
   }
@@ -101,6 +106,18 @@
         </div>
       </section>
 
+      <section class="decision-panel">
+        <div>
+          <h1>Centrum decyzji wychowawcy</h1>
+          <p>Opisz krótko sytuację. Aplikacja odpowie tylko wtedy, gdy znajdzie procedurę, statut, regulamin lub zatwierdzoną odpowiedź. W pozostałych przypadkach dopyta.</p>
+        </div>
+        <div class="decision-row">
+          <textarea id="decisionInput" placeholder="Np. wychowanek uciekł z internatu, pensum wychowawcy MOW, telefon w wakacje..."></textarea>
+          <button class="primary-btn" type="button" id="decisionBtn">Sprawdź ścieżkę</button>
+        </div>
+        <div id="decisionResult" class="decision-result" hidden></div>
+      </section>
+
       <h2 class="section-title">Harmonogram dnia</h2>
       <div class="accordion">${SCHEDULE.map((item, index) => scheduleItem(item, index === current?.index)).join('')}</div>
 
@@ -115,6 +132,7 @@
       </div>
     `;
     tickClock();
+    bindDecisionPanel();
     bindAccordions();
     app.querySelectorAll('[data-quick]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -124,6 +142,25 @@
         else if (id === 's-stop') navigate('levels');
         else if (id === 's-ai') navigate('ai');
       });
+    });
+  }
+
+  function bindDecisionPanel() {
+    const input = document.getElementById('decisionInput');
+    const btn = document.getElementById('decisionBtn');
+    const result = document.getElementById('decisionResult');
+    if (!input || !btn || !result) return;
+    const run = () => {
+      const text = input.value.trim();
+      if (!text) return;
+      const decision = window.MOW_DECISION_ENGINE?.assess(text);
+      result.hidden = false;
+      result.className = `decision-result ${decision?.severity === 'danger' ? 'danger' : decision?.kind === 'blocked' ? 'blocked' : ''}`;
+      result.innerHTML = formatText(window.MOW_DECISION_ENGINE?.format(decision) || 'Brak wyniku.');
+    };
+    btn.addEventListener('click', run);
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) run();
     });
   }
 
@@ -186,9 +223,17 @@
 
   function openProcedure(proc) {
     if (!proc) return;
+    const crisis = proc.sev === 'danger' ? `
+      <div class="crisis-box">
+        <h3>Najpierw w stresie</h3>
+        <ol class="step-list">${proc.steps.slice(0, 3).map(step => `<li>${step}</li>`).join('')}</ol>
+        <a class="panic-call" href="tel:112">Dzwoń 112</a>
+      </div>
+    ` : '';
     openDialog(`
       <h2>${proc.icon} ${escapeHtml(proc.title)}</h2>
       <p class="muted">${escapeHtml(proc.sub || '')}</p>
+      ${crisis}
       <p><strong>Źródło:</strong> ${escapeHtml(proc.src || 'Dokumenty MOW')}</p>
       <ol class="step-list">${proc.steps.map(step => `<li>${step}</li>`).join('')}</ol>
       ${proc.alert ? `<div class="alert"><strong>Uwaga:</strong> ${escapeHtml(proc.alert.txt)}</div>` : ''}
@@ -247,6 +292,8 @@
   function drawLaw(query) {
     const q = normalize(query);
     const laws = LAWS.filter(law => normalize(law.t).includes(q));
+    const documents = (window.DOCUMENT_REGISTRY || [])
+      .filter(doc => normalize([doc.title, doc.type, doc.source, doc.summary, doc.status].join(' ')).includes(q));
     const bank = !q ? [] : answerIndex
       .map(item => ({ item: item.entry, score: scoreAnswer(item, q, tokenize(query)) }))
       .filter(hit => hit.score > .25)
@@ -256,6 +303,17 @@
       <h2 class="section-title">Akty i dokumenty</h2>
       <div class="grid card-grid">
         ${laws.map(law => `<article class="law-card"><strong>${escapeHtml(law.n)}.</strong> ${escapeHtml(law.t)}</article>`).join('') || '<div class="empty">Brak pasujących aktów.</div>'}
+      </div>
+      <h2 class="section-title">Rejestr zatwierdzonych dokumentów</h2>
+      <div class="grid card-grid">
+        ${documents.map(doc => `
+          <button class="law-card" type="button" data-doc="${escapeAttr(doc.id)}">
+            <span class="status-pill ${escapeAttr(doc.status)}">${documentStatusLabel(doc.status)}</span>
+            <h3>${escapeHtml(doc.title)}</h3>
+            <p class="muted">${escapeHtml(doc.type)} · wersja ${escapeHtml(doc.version)}</p>
+            <p>Obowiązuje od: ${escapeHtml(doc.validFrom || 'brak daty')}${doc.validTo ? ` do ${escapeHtml(doc.validTo)}` : ''}</p>
+          </button>
+        `).join('') || '<div class="empty">Brak dokumentów w rejestrze.</div>'}
       </div>
       ${bank.length ? `
         <h2 class="section-title">Odpowiedzi z banku</h2>
@@ -270,10 +328,26 @@
         openDialog(formatBankEntry(entry));
       });
     });
+    document.querySelectorAll('[data-doc]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const doc = (window.DOCUMENT_REGISTRY || []).find(item => item.id === btn.dataset.doc);
+        openDialog(`
+          <h2>${escapeHtml(doc.title)}</h2>
+          <p><span class="status-pill ${escapeAttr(doc.status)}">${documentStatusLabel(doc.status)}</span></p>
+          <p><strong>Typ:</strong> ${escapeHtml(doc.type)}</p>
+          <p><strong>Źródło:</strong> ${escapeHtml(doc.source)}</p>
+          <p><strong>Wersja:</strong> ${escapeHtml(doc.version)}</p>
+          <p><strong>Obowiązuje:</strong> ${escapeHtml(doc.validFrom || 'brak daty')}${doc.validTo ? ` - ${escapeHtml(doc.validTo)}` : ''}</p>
+          <p>${escapeHtml(doc.summary)}</p>
+        `);
+      });
+    });
   }
 
   function renderInfo() {
     const entries = store.get('currentInfo', []);
+    const temporaryRules = store.get('temporaryRules', []);
+    const calendarEvents = extractCalendarEvents(entries);
     app.innerHTML = `
       <section class="panel">
         <div class="panel-header">
@@ -289,6 +363,35 @@
         <button class="primary-btn" type="button" id="addInfo">Dodaj informację</button>
       </section>
       <section class="panel">
+        <h2 class="panel-title">Zmiana czasowa / zarządzenie okresowe</h2>
+        <p class="muted">Tutaj wpisuj zasady, które obowiązują tylko przez określony czas, np. wakacje, ferie, dodatkowe telefony lub zmieniony rozkład dnia.</p>
+        <input class="search" id="ruleTitle" placeholder="Tytuł, np. Telefony w wakacje 2026">
+        <input class="search" id="ruleSource" placeholder="Źródło, np. zarządzenie dyrektora / informacja dyrekcji">
+        <div class="two-col">
+          <input class="search" id="ruleFrom" type="date" aria-label="Obowiązuje od">
+          <input class="search" id="ruleTo" type="date" aria-label="Obowiązuje do">
+        </div>
+        <div class="two-col">
+          <select class="search" id="rulePriority" aria-label="Priorytet">
+            <option value="normal">Normalny</option>
+            <option value="high">Ważne</option>
+            <option value="critical">Krytyczne</option>
+          </select>
+          <select class="search" id="ruleStatus" aria-label="Status">
+            <option value="active">Obowiązuje</option>
+            <option value="draft">Projekt</option>
+            <option value="archived">Archiwum</option>
+          </select>
+        </div>
+        <textarea class="search" id="ruleBody" rows="4" placeholder="Treść zmiany, np. W czasie wakacji od ... do ... wychowankowie na stopniu +1 i +2 mogą korzystać z telefonu dodatkowo godzinę po obiedzie."></textarea>
+        <button class="primary-btn" type="button" id="addRule">Zapisz zmianę</button>
+      </section>
+      <section class="panel">
+        <h2 class="panel-title">Wykryte terminy z informacji</h2>
+        <p class="muted">Aplikacja proponuje wpisy kalendarza na podstawie zapisanych informacji. Pobranie pliku ICS wymaga Twojego świadomego potwierdzenia przez otwarcie pliku.</p>
+        <div id="calendarEvents"></div>
+      </section>
+      <section class="panel">
         <h2 class="panel-title">Kopia danych urządzenia</h2>
         <p class="muted">Zapisuje lokalne informacje, plan, screen harmonogramu i historię AI z tego urządzenia. Nie wysyła danych na serwer.</p>
         <div class="two-col">
@@ -299,6 +402,7 @@
           </label>
         </div>
       </section>
+      <div id="ruleList"></div>
       <div id="infoList"></div>
     `;
     document.getElementById('infoDate').value = todayIso();
@@ -306,6 +410,11 @@
     document.getElementById('syncInfo').addEventListener('click', syncInfo);
     document.getElementById('exportData').addEventListener('click', exportDeviceData);
     document.getElementById('importData').addEventListener('change', importDeviceData);
+    document.getElementById('addRule').addEventListener('click', addTemporaryRule);
+    document.getElementById('ruleFrom').value = todayIso();
+    document.getElementById('ruleTo').value = todayIso();
+    drawTemporaryRules(temporaryRules);
+    drawCalendarEvents(calendarEvents);
     drawInfo(entries);
   }
 
@@ -318,6 +427,88 @@
     entries.unshift({ id: crypto.randomUUID(), date, title: title || 'Informacja', body, source: 'ręcznie' });
     store.set('currentInfo', entries);
     renderInfo();
+  }
+
+  function addTemporaryRule() {
+    const title = document.getElementById('ruleTitle').value.trim();
+    const source = document.getElementById('ruleSource').value.trim();
+    const validFrom = document.getElementById('ruleFrom').value || todayIso();
+    const validTo = document.getElementById('ruleTo').value || '';
+    const priority = document.getElementById('rulePriority').value || 'normal';
+    const status = document.getElementById('ruleStatus').value || 'active';
+    const body = document.getElementById('ruleBody').value.trim();
+    if (!title || !body) {
+      openDialog('<h2>Brakuje danych</h2><p>Podaj co najmniej tytuł i treść zmiany czasowej.</p>');
+      return;
+    }
+    const rules = store.get('temporaryRules', []);
+    rules.unshift({
+      id: crypto.randomUUID(),
+      title,
+      source: source || 'wpis lokalny',
+      validFrom,
+      validTo,
+      priority,
+      status,
+      body,
+      createdAt: new Date().toISOString()
+    });
+    store.set('temporaryRules', rules);
+    renderInfo();
+  }
+
+  function drawTemporaryRules(rules) {
+    const target = document.getElementById('ruleList');
+    const sorted = rules.slice().sort((a, b) => String(b.validFrom).localeCompare(String(a.validFrom)));
+    target.innerHTML = `
+      <h2 class="section-title">Zmiany czasowe</h2>
+      <div class="accordion">
+        ${sorted.length ? sorted.map(rule => {
+          const active = isRuleActive(rule);
+          return `
+            <article class="accordion-item ${active ? 'rule-active' : 'rule-expired'}">
+              <button class="accordion-btn" type="button">
+                <span>${active ? '🟢' : '⚪'}</span>
+                <strong>${escapeHtml(rule.title)} · ${escapeHtml(rule.validFrom || '')}${rule.validTo ? ` - ${escapeHtml(rule.validTo)}` : ''}</strong>
+                <span>Rozwiń</span>
+              </button>
+              <div class="accordion-body">
+                <p><span class="status-pill ${escapeAttr(rule.status)}">${documentStatusLabel(rule.status)}</span> <span class="status-pill">${escapeHtml(rule.priority || 'normal')}</span></p>
+                <p><strong>Źródło:</strong> ${escapeHtml(rule.source || 'brak')}</p>
+                <p>${escapeHtml(rule.body)}</p>
+                <button class="ghost-btn" type="button" data-delete-rule="${escapeAttr(rule.id)}">Usuń</button>
+              </div>
+            </article>
+          `;
+        }).join('') : '<div class="empty">Brak zapisanych zmian czasowych.</div>'}
+      </div>
+    `;
+    bindAccordions(target);
+    target.querySelectorAll('[data-delete-rule]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        store.set('temporaryRules', store.get('temporaryRules', []).filter(rule => rule.id !== btn.dataset.deleteRule));
+        renderInfo();
+      });
+    });
+  }
+
+  function drawCalendarEvents(events) {
+    const target = document.getElementById('calendarEvents');
+    target.innerHTML = events.length ? `
+      <div class="grid card-grid">
+        ${events.map((event, index) => `
+          <article class="info-card">
+            <strong>${escapeHtml(event.title)}</strong>
+            <p>${escapeHtml(event.date)}${event.time ? ` · ${escapeHtml(event.time)}` : ''}</p>
+            <p class="muted">${escapeHtml(event.sourceTitle)}</p>
+            <button class="ghost-btn" type="button" data-ics="${index}">Pobierz ICS</button>
+          </article>
+        `).join('')}
+      </div>
+    ` : '<div class="empty">Brak wykrytych terminów w zapisanych informacjach.</div>';
+    target.querySelectorAll('[data-ics]').forEach(btn => {
+      btn.addEventListener('click', () => downloadIcs(events[Number(btn.dataset.ics)]));
+    });
   }
 
   async function syncInfo() {
@@ -379,9 +570,9 @@
           <button class="ghost-btn" type="button" id="fetchPlan">Pobierz plan</button>
         </div>
         <p class="muted">Plan z generatora, plik tekstowy albo screen do powiększenia.</p>
-        <div class="two-col">
+        <div class="${isTesterMode ? '' : 'two-col'}">
           <input class="search" id="workerName" placeholder="Nazwisko, np. Dymek" value="${escapeAttr(store.get('workerName', 'Dymek'))}">
-          <input class="search" id="viewToken" placeholder="VIEW_TOKEN / ADMIN_TOKEN" value="${escapeAttr(store.get('viewToken', ''))}">
+          ${isTesterMode ? '<p class="muted">Tryb testera: token harmonogramu jest ukryty i nie jest zapisywany na urządzeniu.</p>' : `<input class="search" id="viewToken" placeholder="VIEW_TOKEN / ADMIN_TOKEN" value="${escapeAttr(store.get('viewToken', ''))}">`}
         </div>
       </section>
       <div class="grid card-grid">
@@ -406,9 +597,9 @@
 
   async function fetchPlan() {
     const worker = document.getElementById('workerName').value.trim() || 'Dymek';
-    const token = document.getElementById('viewToken').value.trim();
+    const token = isTesterMode ? '' : document.getElementById('viewToken').value.trim();
     store.set('workerName', worker);
-    store.set('viewToken', token);
+    if (!isTesterMode) store.set('viewToken', token);
     const btn = document.getElementById('fetchPlan');
     btn.disabled = true;
     btn.textContent = 'Pobieram...';
@@ -489,6 +680,7 @@
 
   function renderAi() {
     const history = store.get('chat', []);
+    const privacyMode = store.get('privacyMode', true);
     app.innerHTML = `
       <section class="panel">
         <div class="panel-header">
@@ -496,6 +688,11 @@
           <button class="ghost-btn" type="button" id="clearChat">Wyczyść</button>
         </div>
         <p class="muted">Najpierw szukam w lokalnym banku 250 odpowiedzi. Model zewnętrzny jest używany tylko wtedy, gdy bank nie wystarczy.</p>
+        <label class="status-pill">
+          <input id="privacyMode" type="checkbox" ${privacyMode ? 'checked' : ''}>
+          Tryb bez danych osobowych
+        </label>
+        <div id="privacyWarning"></div>
         <div id="chatWindow" class="chat-window"></div>
         <div class="chat-input-row">
           <textarea id="chatInput" placeholder="Napisz pytanie..."></textarea>
@@ -518,6 +715,9 @@
       store.remove('chat');
       drawChat([]);
     });
+    document.getElementById('privacyMode').addEventListener('change', e => {
+      store.set('privacyMode', e.target.checked);
+    });
     app.querySelectorAll('[data-pill]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.getElementById('chatInput').value = btn.dataset.pill;
@@ -530,6 +730,16 @@
     const input = document.getElementById('chatInput');
     const question = input.value.trim();
     if (!question) return;
+    const privacyMode = document.getElementById('privacyMode')?.checked ?? true;
+    store.set('privacyMode', privacyMode);
+    const privacyWarning = detectSensitiveText(question);
+    if (privacyMode && privacyWarning) {
+      const target = document.getElementById('privacyWarning');
+      if (target) {
+        target.innerHTML = `<div class="privacy-warning"><strong>Wstrzymano wysyłkę.</strong><br>${escapeHtml(privacyWarning)} Zanonimizuj pytanie: użyj inicjałów, grupy i opisu zdarzenia bez danych identyfikujących.</div>`;
+      }
+      return;
+    }
     input.value = '';
     const history = store.get('chat', []);
     history.push({ role: 'user', text: question });
@@ -537,7 +747,7 @@
 
     const local = resolveLocalAnswer(question);
     if (local) {
-      history.push({ role: 'ai', text: local });
+      history.push({ role: 'ai', text: appendActiveRules(question, local) });
       store.set('chat', history.slice(-20));
       drawChat(history);
       return;
@@ -569,6 +779,11 @@
   }
 
   function resolveLocalAnswer(question) {
+    if (window.MOW_DECISION_ENGINE?.assess && window.MOW_DECISION_ENGINE?.format) {
+      const decision = window.MOW_DECISION_ENGINE.assess(question);
+      if (decision) return window.MOW_DECISION_ENGINE.format(decision);
+    }
+
     if (typeof window.resolveAnswerBankIntent === 'function') {
       const match = window.resolveAnswerBankIntent(question);
       if (match?.type === 'answer' && typeof window.formatAnswerBankReply === 'function') {
@@ -685,6 +900,16 @@
     });
   }
 
+  function bindContrast() {
+    const btn = document.getElementById('contrastBtn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const enabled = !document.body.classList.contains('sun-mode');
+      document.body.classList.toggle('sun-mode', enabled);
+      store.set('sunMode', enabled);
+    });
+  }
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('./sw.js')
@@ -747,6 +972,136 @@
     }
   }
 
+  function getActiveTemporaryRules(date = new Date()) {
+    return store.get('temporaryRules', [])
+      .filter(rule => rule.status === 'active' && isRuleActive(rule, date))
+      .sort((a, b) => priorityValue(b.priority) - priorityValue(a.priority));
+  }
+
+  function isRuleActive(rule, date = new Date()) {
+    if (rule.status !== 'active') return false;
+    const today = toDateOnly(date);
+    const from = rule.validFrom || '0000-01-01';
+    const to = rule.validTo || '9999-12-31';
+    return today >= from && today <= to;
+  }
+
+  function appendActiveRules(question, answer) {
+    const query = normalize(question);
+    const matches = getActiveTemporaryRules()
+      .filter(rule => {
+        const haystack = normalize([rule.title, rule.body, rule.source].join(' '));
+        const queryTokens = tokenize(query);
+        return queryTokens.some(token => haystack.includes(token)) || haystack.includes('telefon') && query.includes('telefon');
+      })
+      .slice(0, 3);
+    if (!matches.length) return answer;
+    return `${answer}\n\nAktualne zmiany czasowe, które mogą mieć znaczenie:\n${matches.map(rule => `- ${rule.title} (${rule.validFrom}${rule.validTo ? ` - ${rule.validTo}` : ''}): ${rule.body}`).join('\n')}`;
+  }
+
+  function extractCalendarEvents(entries) {
+    const monthNames = {
+      stycznia: '01', lutego: '02', marca: '03', kwietnia: '04', maja: '05', czerwca: '06',
+      lipca: '07', sierpnia: '08', wrzesnia: '09', września: '09', pazdziernika: '10',
+      października: '10', listopada: '11', grudnia: '12'
+    };
+    const events = [];
+    entries.forEach(entry => {
+      const text = `${entry.title || ''}\n${entry.body || ''}`;
+      const numeric = [...text.matchAll(/\b([0-3]?\d)[.\-/]([01]?\d)[.\-/](20\d{2})\b/g)];
+      const named = [...text.matchAll(/\b([0-3]?\d)\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|wrzesnia|października|pazdziernika|listopada|grudnia)\s+(20\d{2})\b/gi)];
+      const times = [...text.matchAll(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g)];
+      numeric.forEach(match => {
+        events.push(buildCalendarEvent(entry, `${match[3]}-${pad(match[2])}-${pad(match[1])}`, times[0] ? `${pad(times[0][1])}:${times[0][2]}` : ''));
+      });
+      named.forEach(match => {
+        const month = monthNames[match[2].toLowerCase()];
+        if (month) events.push(buildCalendarEvent(entry, `${match[3]}-${month}-${pad(match[1])}`, times[0] ? `${pad(times[0][1])}:${times[0][2]}` : ''));
+      });
+    });
+    return uniqueBy(events, event => `${event.date}:${event.time}:${event.title}`).slice(0, 12);
+  }
+
+  function buildCalendarEvent(entry, date, time) {
+    return {
+      title: entry.title || 'Termin MOW',
+      date,
+      time,
+      sourceTitle: entry.title || entry.source || 'Informacja',
+      description: entry.body || ''
+    };
+  }
+
+  function downloadIcs(event) {
+    const start = formatIcsDate(event.date, event.time);
+    const end = formatIcsDate(event.date, addOneHour(event.time));
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Asystent MOW NewGen//PL',
+      'BEGIN:VEVENT',
+      `UID:${crypto.randomUUID()}@asystent-mow-newgen`,
+      `DTSTAMP:${formatIcsDate(todayIso(), new Date().toTimeString().slice(0, 5))}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${icsEscape(event.title)}`,
+      `DESCRIPTION:${icsEscape(event.description)}`,
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+    const blob = new Blob([ics], { type: 'text/calendar' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${slugify(event.title)}-${event.date}.ics`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+  function detectSensitiveText(value) {
+    const text = String(value || '');
+    if (/\b\d{11}\b/.test(text)) return 'Wykryto ciąg podobny do numeru PESEL.';
+    if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text)) return 'Wykryto adres e-mail.';
+    if (/(?:\+48\s*)?(?:\d[\s-]?){9,}/.test(text)) return 'Wykryto numer telefonu.';
+    if (/\b(pesel|adres zamieszkania|nazwisko wychowanka|dane medyczne|diagnoza medyczna)\b/i.test(text)) return 'Pytanie wygląda na zawierające dane identyfikujące lub wrażliwe.';
+    return '';
+  }
+
+  function documentStatusLabel(status) {
+    return status === 'active' ? 'Obowiązuje' : status === 'draft' ? 'Projekt' : status === 'archived' ? 'Archiwum' : status || 'status';
+  }
+
+  function priorityValue(priority) {
+    return priority === 'critical' ? 3 : priority === 'high' ? 2 : 1;
+  }
+
+  function toDateOnly(date) {
+    if (typeof date === 'string') return date.slice(0, 10);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function formatIcsDate(date, time) {
+    const safeTime = time || '09:00';
+    return `${date.replace(/-/g, '')}T${safeTime.replace(':', '')}00`;
+  }
+
+  function addOneHour(time) {
+    if (!time) return '10:00';
+    const [h, m] = time.split(':').map(Number);
+    return `${pad((h + 1) % 24)}:${pad(m)}`;
+  }
+
+  function icsEscape(value) {
+    return String(value || '').replace(/[\\;,]/g, '\\$&').replace(/\n/g, '\\n');
+  }
+
+  function slugify(value) {
+    return normalize(value).replace(/\s+/g, '-').slice(0, 60) || 'termin-mow';
+  }
+
+  function pad(value) {
+    return String(value).padStart(2, '0');
+  }
+
   function tickClock() {
     const now = new Date();
     const clock = document.getElementById('clock');
@@ -791,6 +1146,8 @@
     return {
       schedule: getCurrentScheduleItem(),
       laws: LAWS.slice(0, 6),
+      documents: (window.DOCUMENT_REGISTRY || []).filter(doc => doc.status === 'active').slice(0, 10),
+      activeTemporaryRules: getActiveTemporaryRules(),
       answerBankCount: window.MOW_ANSWER_BANK?.length || 0
     };
   }

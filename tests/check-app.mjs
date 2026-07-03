@@ -41,6 +41,7 @@ for (const file of dataFiles) {
   if (!exists(`assets/js/${file}`)) throw new Error(`Brak pliku danych: ${file}`);
 }
 if (!exists('assets/js/answer-router.js')) throw new Error('Brak routera lokalnego banku odpowiedzi.');
+if (!exists('assets/js/decision-engine.js')) throw new Error('Brak silnika decyzji opartego na źródłach.');
 
 const appSurface = [
   read('index.html'),
@@ -56,6 +57,14 @@ const knowledgeFiles = fs.readdirSync(path.join(root, 'backend/knowledge')).filt
 if (knowledgeFiles.length < 7) throw new Error('Backendowa baza wiedzy jest niepełna.');
 if (!read('backend/knowledge/04_wyciag_mow_praca_wychowawcy_awans_czas_pracy.md').includes('24 godziny')) {
   throw new Error('Baza wiedzy nie zawiera poprawnej informacji o pensum 24 godziny.');
+}
+
+const originalSources = path.join(root, 'backend/knowledge/00_zrodla_oryginalne_mow');
+if (!fs.existsSync(path.join(originalSources, 'statut_mow_nr_1_malbork.md'))) {
+  throw new Error('Brak wyciągniętego tekstu Statutu MOW w backendowej bazie wiedzy.');
+}
+if (!fs.existsSync(path.join(originalSources, 'procedury_mow_malbork.md'))) {
+  throw new Error('Brak wyciągniętego tekstu procedur MOW w backendowej bazie wiedzy.');
 }
 
 console.log('OK: struktura aplikacji, PWA, manifest i bank odpowiedzi są poprawne.');

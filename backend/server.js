@@ -28,7 +28,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/health') return json(res, 200, { ok: true, app: 'Asystent MOW NewGen' });
     if (url.pathname === '/api/chat' && req.method === 'POST') return handleChat(req, res);
     if (url.pathname === '/api/weekly-plan' && req.method === 'POST') return handleWeeklyPlan(req, res);
-    if (url.pathname === '/api/current-info-mail' && req.method === 'GET') return handleCurrentInfo(res);
+    if (url.pathname === '/api/current-info-mail' && req.method === 'GET') return await handleCurrentInfo(res);
     if (req.method !== 'GET') return json(res, 405, { error: 'Metoda niedozwolona.' });
     return serveStatic(url, res);
   } catch (err) {
@@ -48,6 +48,8 @@ async function handleChat(req, res) {
     'Jesteś Asystentem MOW dla wychowawcy w Młodzieżowym Ośrodku Wychowawczym nr 1 w Malborku.',
     'Najpierw stosuj dokumenty MOW, potem akty prawne. Gdy pytanie jest zbyt ogólne, dopytaj.',
     'Nie proś o pełne dane osobowe wychowanka. Odpowiadaj konkretnie, praktycznie i ze źródłem.',
+    'Nie wolno zgadywać. Jeżeli w bazie nie ma podstawy albo pytanie jest niejednoznaczne, poproś o doprecyzowanie zamiast udzielać odpowiedzi na siłę.',
+    'Każdą odpowiedź zakończ krótkim wskazaniem źródła. Jeżeli odpowiedź opiera się tylko na ogólnej wiedzy, napisz, że wymaga weryfikacji w aktualnych dokumentach MOW.',
     'Ważne: pensum wychowawcy MOW wynosi 24 godziny tygodniowo; 40 godzin dotyczy limitu czasu pracy nauczyciela, nie pensum.',
     '',
     'Aktywna baza wiedzy:',
@@ -126,11 +128,37 @@ async function handleWeeklyPlan(req, res) {
   return json(res, 200, data);
 }
 
-function handleCurrentInfo(res) {
-  return json(res, 200, {
-    items: [],
-    note: 'Automatyczne czytanie poczty można podpiąć później przez bezpieczny connector lub osobny mikroserwis IMAP.'
-  });
+async function handleCurrentInfo(res) {
+  const feedUrl = process.env.CURRENT_INFO_FEED_URL || process.env.CURRENT_INFO_URL;
+  if (!feedUrl) {
+    return json(res, 200, {
+      items: [],
+      note: 'Brak CURRENT_INFO_FEED_URL. Aplikacja działa lokalnie, a automatyczny import informacji można podpiąć przez bezpieczne źródło JSON.'
+    });
+  }
+  try {
+    const headers = {};
+    if (process.env.CURRENT_INFO_TOKEN) headers.Authorization = `Bearer ${process.env.CURRENT_INFO_TOKEN}`;
+    const response = await fetch(feedUrl, {
+      headers,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(45000)
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) return json(res, 502, { error: 'Źródło bieżących informacji nie zwróciło poprawnego JSON.' });
+    const rawItems = Array.isArray(data) ? data : data.items || data.messages || [];
+    const items = rawItems.map((item, index) => ({
+      id: item.id || item.messageId || `feed-${index}`,
+      date: String(item.date || item.receivedAt || item.createdAt || '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+      title: item.title || item.subject || 'Informacja dyrekcji',
+      body: item.body || item.text || item.snippet || '',
+      source: item.source || item.from || 'źródło zewnętrzne',
+      attachments: item.attachments || []
+    })).filter(item => item.title || item.body);
+    return json(res, 200, { items });
+  } catch (err) {
+    return json(res, 502, { error: `Nie udało się pobrać bieżących informacji: ${err.message}` });
+  }
 }
 
 function serveStatic(url, res) {
@@ -152,10 +180,22 @@ function serveIndex(res) {
 function loadKnowledge() {
   const dir = path.join(__dirname, 'knowledge');
   if (!fs.existsSync(dir)) return '';
-  return fs.readdirSync(dir, { withFileTypes: true })
-    .filter(entry => entry.isFile() && entry.name.endsWith('.md') && !entry.name.startsWith('_'))
-    .map(entry => fs.readFileSync(path.join(dir, entry.name), 'utf8'))
+  return collectKnowledgeFiles(dir)
+    .map(file => fs.readFileSync(file, 'utf8'))
     .join('\n\n---\n\n');
+}
+
+function collectKnowledgeFiles(dir) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+    .filter(entry => !entry.name.startsWith('_'))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const localFiles = entries
+    .filter(entry => entry.isFile() && entry.name.endsWith('.md'))
+    .map(entry => path.join(dir, entry.name));
+  const nestedFiles = entries
+    .filter(entry => entry.isDirectory())
+    .flatMap(entry => collectKnowledgeFiles(path.join(dir, entry.name)));
+  return [...localFiles, ...nestedFiles];
 }
 
 function readJson(req) {

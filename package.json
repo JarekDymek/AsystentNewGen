@@ -9,7 +9,8 @@
     "test:syntax": "node tests/check-syntax.mjs",
     "test:app": "node tests/check-app.mjs",
     "test:router": "node tests/check-answer-router.mjs",
-    "check": "node tests/check-syntax.mjs && node tests/check-app.mjs && node tests/check-answer-router.mjs"
+    "test:decision": "node tests/check-decision-engine.mjs",
+    "check": "node tests/check-syntax.mjs && node tests/check-app.mjs && node tests/check-answer-router.mjs && node tests/check-decision-engine.mjs"
   },
   "engines": {
     "node": ">=20"

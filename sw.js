@@ -1,4 +1,4 @@
-const CACHE = 'asystent-mow-newgen-v3';
+const CACHE = 'asystent-mow-newgen-v5';
 const APP_SHELL = [
   './',
   './index.html',
@@ -13,8 +13,10 @@ const APP_SHELL = [
   './assets/js/data-quick-actions.js',
   './assets/js/data-chat-pills.js',
   './assets/js/data-laws.js',
+  './assets/js/data-document-registry.js',
   './assets/js/data-answer-bank.js',
   './assets/js/answer-router.js',
+  './assets/js/decision-engine.js',
   './assets/js/app.js'
 ];
 
